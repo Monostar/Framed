@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Framed — 照片边框与裁切拼图</title>
+<style>
+  :root {
+    --gray-0:#000;--gray-1:#08080a;--gray-2:#0e0e11;--gray-3:#151519;--gray-4:#1e1e24;
+    --gray-5:#2a2a32;--gray-6:#3a3a44;--gray-7:#6b6b78;--gray-8:#a0a0ad;--gray-9:#ededf0;
+    --blue:#3b82f6;--blue-hover:#2f6fe0;--blue-soft:rgba(59,130,246,.12);
+    --green:#22c55e;--red:#ef4444;
+    --s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:24px;--s-6:32px;--s-7:48px;
+    --t-xs:11px;--t-sm:12px;--t-md:13px;--t-lg:15px;--t-xl:20px;
+    --r-sm:6px;--r-md:10px;--r-lg:14px;--r-full:999px;
+    --ease:cubic-bezier(.25,.1,.25,1);--dur-fast:120ms;--dur:180ms;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 4px 16px rgba(0,0,0,.5);--shadow-lg:0 12px 40px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--gray-1);color:var(--gray-9);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue","PingFang SC",sans-serif;font-size:var(--t-md);line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:"tnum","cv01","ss01";overflow:hidden;user-select:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  input[type="file"]{display:none}
+  .app{height:100vh;display:grid;grid-template-rows:52px 1fr 96px;overflow:hidden}
+
+  .toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 var(--s-4);background:rgba(8,8,10,.72);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-bottom:1px solid var(--gray-5);position:relative;z-index:10}
+  .toolbar-left{display:flex;align-items:center;gap:var(--s-3)}
+  .logo{width:26px;height:26px;border-radius:var(--r-md);background:var(--gray-9);color:var(--gray-1);display:flex;align-items:center;justify-content:center;font-size:var(--t-md);font-weight:700;letter-spacing:-.04em}
+  .toolbar-title{font-size:var(--t-md);font-weight:600;letter-spacing:-.01em}
+  .toolbar-title .sep{color:var(--gray-6);margin:0 var(--s-2);font-weight:400}
+  .toolbar-title .dim{color:var(--gray-7);font-weight:400}
+  .toolbar-center{display:flex;align-items:center;gap:var(--s-2)}
+  .toolbar-right{display:flex;align-items:center;gap:var(--s-2)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);height:32px;padding:0 var(--s-3);border-radius:var(--r-md);font-size:var(--t-sm);font-weight:500;color:var(--gray-9);background:var(--gray-3);border:1px solid var(--gray-5);transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);white-space:nowrap}
+  .btn:hover{background:var(--gray-4);border-color:var(--gray-6)}
+  .btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.4;pointer-events:none}
+  .btn-primary{background:var(--gray-9);color:var(--gray-1);border-color:transparent;font-weight:600}
+  .btn-primary:hover{background:#fff}
+  .btn-ghost{background:transparent;border-color:transparent;color:var(--gray-8)}
+  .btn-ghost:hover{background:var(--gray-3);color:var(--gray-9)}
+  .btn-accent{background:var(--blue);color:#fff;border-color:transparent;font-weight:600}
+  .btn-accent:hover{background:var(--blue-hover)}
+  .btn-sm{height:26px;padding:0 var(--s-2);font-size:var(--t-xs);border-radius:var(--r-sm)}
+  .status{display:inline-flex;align-items:center;gap:var(--s-2);font-size:var(--t-xs);color:var(--gray-7);padding:0 var(--s-2)}
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.6)}
+
+  .main{display:grid;grid-template-columns:1fr 340px;grid-template-rows:1fr;min-height:0;overflow:hidden}
+  .canvas-area{display:flex;align-items:center;justify-content:center;background:var(--gray-1);position:relative;overflow:hidden;padding:var(--s-6);min-width:0}
+  .canvas-area::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--gray-3) 1px,transparent 1px),linear-gradient(90deg,var(--gray-3) 1px,transparent 1px);background-size:32px 32px;opacity:.35;mask-image:radial-gradient(ellipse at center,black 20%,transparent 70%);-webkit-mask-image:radial-gradient(ellipse at center,black 20%,transparent 70%);pointer-events:none}
+  .canvas-stage{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%;transition:opacity var(--dur) var(--ease)}
+  .canvas-stage.switching{opacity:.3}
+  canvas{display:block;max-width:100%;max-height:100%;height:auto;border-radius:var(--r-sm);box-shadow:0 0 0 1px rgba(255,255,255,.06),0 20px 60px -12px rgba(0,0,0,.9);transition:box-shadow var(--dur) var(--ease)}
+  .empty-state{position:relative;z-index:1;text-align:center;color:var(--gray-7)}
+  .empty-state .icon{width:56px;height:56px;margin:0 auto var(--s-4);border-radius:var(--r-lg);background:var(--gray-2);border:1px solid var(--gray-5);display:flex;align-items:center;justify-content:center;color:var(--gray-6);font-size:24px}
+  .empty-state .title{font-size:var(--t-lg);font-weight:600;color:var(--gray-8);margin-bottom:var(--s-2);letter-spacing:-.01em}
+  .empty-state .desc{font-size:var(--t-sm);color:var(--gray-7);margin-bottom:var(--s-5)}
+  .canvas-info{position:absolute;left:var(--s-4);bottom:var(--s-4);display:flex;gap:var(--s-2);font-size:var(--t-xs);color:var(--gray-7);z-index:2;pointer-events:none;flex-wrap:wrap}
+  .canvas-info .pill{background:rgba(14,14,17,.8);border:1px solid var(--gray-5);padding:4px var(--s-2);border-radius:var(--r-sm);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-variant-numeric:tabular-nums}
+
+  .inspector{background:rgba(14,14,17,.72);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-left:1px solid var(--gray-5);overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+  .inspector::-webkit-scrollbar{width:6px}
+  .inspector::-webkit-scrollbar-thumb{background:var(--gray-5);border-radius:4px}
+
+  .inspector-section{padding:var(--s-4);border-bottom:1px solid var(--gray-5)}
+  .inspector-section:last-child{border-bottom:none}
+  .section-label{font-size:var(--t-xs);font-weight:600;color:var(--gray-7);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s-3);display:flex;align-items:center;justify-content:space-between}
+  .field{margin-bottom:var(--s-4)}
+  .field:last-child{margin-bottom:0}
+  .field-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s-2)}
+  .field-label{font-size:var(--t-sm);color:var(--gray-8);font-weight:500}
+  .field-value{font-size:var(--t-xs);color:var(--gray-9);font-weight:600;font-variant-numeric:tabular-nums;background:var(--gray-3);padding:2px var(--s-2);border-radius:var(--r-sm);min-width:40px;text-align:center}
+  .field-value.zero{color:var(--gray-7)}
+
+  .mode-switch{display:flex;background:var(--gray-3);border:1px solid var(--gray-5);border-radius:var(--r-md);padding:3px;gap:3px}
+  .mode-switch button{flex:1;height:34px;border-radius:var(--r-sm);font-size:var(--t-sm);font-weight:500;color:var(--gray-7);transition:all var(--dur-fast) var(--ease);display:flex;align-items:center;justify-content:center}
+  .mode-switch button.active{background:var(--gray-9);color:var(--gray-1);font-weight:600;box-shadow:var(--shadow-sm)}
+
+  .ratio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-2);margin-bottom:var(--s-3)}
+  .ratio-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:var(--s-2) 4px;border-radius:var(--r-md);background:var(--gray-3);border:1px solid var(--gray-5);color:var(--gray-8);font-size:var(--t-xs);font-weight:500;transition:all var(--dur-fast) var(--ease);min-height:56px}
+  .ratio-btn:hover{background:var(--gray-4);border-color:var(--gray-6);color:var(--gray-9)}
+  .ratio-btn.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
+  .ratio-icon{display:block;background:currentColor;opacity:.7;border-radius:1.5px;transition:width var(--dur-fast) var(--ease),height var(--dur-fast) var(--ease),opacity var(--dur-fast) var(--ease)}
+  .ratio-btn:hover .ratio-icon{opacity:.9}
+  .ratio-btn.active .ratio-icon{opacity:1}
+  .ratio-icon-wrap{height:22px;display:flex;align-items:center;justify-content:center}
+
+  .orientation-toggle{display:flex;background:var(--gray-3);border:1px solid var(--gray-5);border-radius:var(--r-md);padding:2px;gap:2px}
+  .orientation-toggle button{flex:1;height:26px;border-radius:var(--r-sm);font-size:var(--t-xs);font-weight:500;color:var(--gray-7);transition:all var(--dur-fast) var(--ease);display:flex;align-items:center;justify-content:center;gap:5px}
+  .orientation-toggle button:hover{color:var(--gray-8)}
+  .orientation-toggle button.active{background:var(--gray-9);color:var(--gray-1);font-weight:600;box-shadow:var(--shadow-sm)}
+  .orientation-toggle button:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+
+  .segmented{display:flex;background:var(--gray-3);border:1px solid var(--gray-5);border-radius:var(--r-md);padding:2px;gap:2px;margin-bottom:var(--s-4)}
+  .segmented button{flex:1;height:26px;border-radius:var(--r-sm);font-size:var(--t-xs);font-weight:500;color:var(--gray-7);transition:all var(--dur-fast) var(--ease);display:flex;align-items:center;justify-content:center;gap:5px}
+  .segmented button:hover{color:var(--gray-8)}
+  .segmented button.active{background:var(--gray-9);color:var(--gray-1);font-weight:600;box-shadow:var(--shadow-sm)}
+
+  input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:var(--gray-5);border-radius:var(--r-full);outline:none;cursor:pointer}
+  input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gray-9);box-shadow:0 0 0 .5px rgba(0,0,0,.6),0 1px 3px rgba(0,0,0,.5);transition:transform var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)}
+  input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+  input[type="range"]:active::-webkit-slider-thumb{transform:scale(1.1);box-shadow:0 0 0 .5px rgba(0,0,0,.6),0 0 0 4px var(--blue-soft),0 1px 3px rgba(0,0,0,.5)}
+  input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gray-9);border:none;box-shadow:0 0 0 .5px rgba(0,0,0,.6)}
+
+  .offset-slider-wrap{position:relative;padding-top:2px}
+  .offset-slider-wrap::before{content:"";position:absolute;left:50%;top:0;width:1px;height:7px;background:var(--gray-6);transform:translateX(-50%);pointer-events:none}
+
+  .color-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
+  .color-row .field-label{flex:1}
+  .color-chip{position:relative;width:28px;height:28px;border-radius:var(--r-sm);border:1px solid var(--gray-6);overflow:hidden;cursor:pointer;transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease);flex-shrink:0}
+  .color-chip:hover{transform:scale(1.08);border-color:var(--gray-8)}
+  .color-chip input[type="color"]{position:absolute;inset:-8px;width:200%;height:200%;cursor:pointer;border:none;padding:0;background:none;opacity:0}
+
+  .preset-row{display:flex;gap:var(--s-2);margin-top:var(--s-2);flex-wrap:wrap}
+  .preset-dot{width:24px;height:24px;border-radius:50%;border:1px solid var(--gray-6);cursor:pointer;transition:transform var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease)}
+  .preset-dot:hover{transform:scale(1.15);border-color:var(--gray-8)}
+  .preset-dot:first-child{border-width:2px;border-color:var(--gray-9)}
+
+  .export-progress{margin-top:var(--s-3);display:none}
+  .export-progress.show{display:block}
+  .export-bar{height:3px;background:var(--gray-4);border-radius:var(--r-full);overflow:hidden}
+  .export-bar-fill{height:100%;width:0%;background:var(--blue);border-radius:var(--r-full);transition:width var(--dur) var(--ease)}
+  .export-text{font-size:var(--t-xs);color:var(--gray-7);margin-top:var(--s-2);font-variant-numeric:tabular-nums}
+
+  .hidden{display:none!important}
+
+  .input-inline{width:100%;height:30px;padding:0 var(--s-2);border-radius:var(--r-sm);background:var(--gray-3);border:1px solid var(--gray-5);color:var(--gray-9);font-size:var(--t-sm);font-family:inherit;font-variant-numeric:tabular-nums;outline:none;transition:border-color var(--dur-fast) var(--ease)}
+  .input-inline:focus{border-color:var(--blue)}
+  .input-inline::placeholder{color:var(--gray-6)}
+  select.input-inline{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236b6b78' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;cursor:pointer}
+
+  .switch-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
+  .switch-row .field-label{flex:1}
+  .switch{position:relative;width:36px;height:20px;border-radius:var(--r-full);background:var(--gray-5);cursor:pointer;transition:background var(--dur-fast) var(--ease);flex-shrink:0;border:none;padding:0}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--gray-9);transition:transform var(--dur-fast) var(--ease)}
+  .switch.on{background:var(--blue)}
+  .switch.on::after{transform:translateX(16px)}
+
+  .segmented-sm{display:flex;background:var(--gray-3);border:1px solid var(--gray-5);border-radius:var(--r-md);padding:2px;gap:2px}
+  .segmented-sm button{flex:1;height:24px;border-radius:var(--r-sm);font-size:var(--t-xs);font-weight:500;color:var(--gray-7);transition:all var(--dur-fast) var(--ease);display:flex;align-items:center;justify-content:center}
+  .segmented-sm button.active{background:var(--gray-9);color:var(--gray-1);font-weight:600;box-shadow:var(--shadow-sm)}
+
+  .split-ratio-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2);margin-bottom:var(--s-3)}
+  .split-ratio-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:var(--s-3) 4px;border-radius:var(--r-md);background:var(--gray-3);border:1px solid var(--gray-5);color:var(--gray-8);font-size:var(--t-sm);font-weight:500;transition:all var(--dur-fast) var(--ease);min-height:72px}
+  .split-ratio-btn:hover{background:var(--gray-4);border-color:var(--gray-6);color:var(--gray-9)}
+  .split-ratio-btn.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
+  .split-ratio-icon{display:block;background:currentColor;opacity:.7;border-radius:2px;max-height:32px}
+
+  .split-count-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-2);margin-bottom:var(--s-3)}
+  .split-count-btn{height:40px;border-radius:var(--r-md);background:var(--gray-3);border:1px solid var(--gray-5);color:var(--gray-8);font-size:var(--t-sm);font-weight:500;transition:all var(--dur-fast) var(--ease);display:flex;align-items:center;justify-content:center}
+  .split-count-btn:hover{background:var(--gray-4);border-color:var(--gray-6);color:var(--gray-9)}
+  .split-count-btn.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}
+
+  .split-tip{font-size:var(--t-xs);color:var(--gray-7);line-height:1.7;padding:var(--s-2) 0}
+  .split-tip b{color:var(--gray-8);font-weight:600}
+
+  .strip{border-top:1px solid var(--gray-5);background:var(--gray-1);display:flex;align-items:center;padding:0 var(--s-4);gap:var(--s-2);overflow-x:auto;overflow-y:hidden}
+  .strip::-webkit-scrollbar{height:4px}
+  .strip::-webkit-scrollbar-thumb{background:var(--gray-5);border-radius:4px}
+  .thumb-item{position:relative;width:64px;height:64px;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--gray-5);cursor:pointer;flex-shrink:0;transition:border-color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);background:var(--gray-2)}
+  .thumb-item:hover{border-color:var(--gray-7);transform:translateY(-1px)}
+  .thumb-item.active{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  .thumb-item img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb-item .thumb-remove{position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity var(--dur-fast) var(--ease);backdrop-filter:blur(4px)}
+  .thumb-item:hover .thumb-remove{opacity:1}
+  .thumb-item .thumb-remove:hover{background:var(--red)}
+  .strip-add{width:64px;height:64px;border-radius:var(--r-md);border:1px dashed var(--gray-6);background:transparent;color:var(--gray-7);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all var(--dur-fast) var(--ease);margin-left:var(--s-1)}
+  .strip-add:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+
+  .toast{position:fixed;bottom:var(--s-6);left:50%;transform:translateX(-50%) translateY(8px);background:var(--gray-3);border:1px solid var(--gray-6);color:var(--gray-9);font-size:var(--t-sm);font-weight:500;padding:var(--s-2) var(--s-4);border-radius:var(--r-full);box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);z-index:999;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:1000px){.main{grid-template-columns:1fr 300px}}
+  @media (max-width:900px){.main{grid-template-columns:1fr;grid-template-rows:1fr 40vh}.inspector{border-left:none;border-top:1px solid var(--gray-5)}.app{grid-template-rows:52px 1fr 40vh 96px}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="toolbar">
+    <div class="toolbar-left">
+      <div class="logo">F</div>
+      <div class="toolbar-title">Framed <span class="sep">/</span> <span class="dim" id="toolbarSubtitle">未命名</span></div>
+    </div>
+    <div class="toolbar-center"><div class="status"><span class="status-dot"></span>本地处理</div></div>
+    <div class="toolbar-right">
+      <button class="btn btn-ghost" id="resetBtn">重置</button>
+      <button class="btn btn-ghost" id="clearBtn">清空</button>
+      <button class="btn btn-primary" id="addBtn">添加照片</button>
+      <button class="btn btn-accent" id="downloadAllBtn" disabled>导出全部</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="canvas-area">
+      <div class="canvas-stage" id="canvasStage"><canvas id="previewCanvas" width="400" height="400"></canvas></div>
+      <div class="empty-state" id="emptyState">
+        <div class="icon">◫</div>
+        <div class="title">没有照片</div>
+        <div class="desc">点击下方 + 或顶部「添加照片」开始</div>
+      </div>
+      <div class="canvas-info" id="canvasInfo" style="display:none;">
+        <span class="pill" id="infoName">—</span>
+        <span class="pill" id="infoSize">—</span>
+        <span class="pill" id="infoOutput">—</span>
+      </div>
+    </section>
+
+    <aside class="inspector">
+      <div class="inspector-section">
+        <div class="mode-switch" id="modeSwitch">
+          <button data-mode="single" class="active">单张</button>
+          <button data-mode="split">裁切拼图</button>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div id="singleRatioSection">
+          <div class="section-label">画布比例</div>
+          <div class="ratio-grid" id="ratioGrid">
+            <button class="ratio-btn active" data-ratio="1:1">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>1:1
+            </button>
+            <button class="ratio-btn" data-ratio="3:2">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>3:2
+            </button>
+            <button class="ratio-btn" data-ratio="2:3">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>2:3
+            </button>
+            <button class="ratio-btn" data-ratio="4:3">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>4:3
+            </button>
+            <button class="ratio-btn" data-ratio="5:4">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>5:4
+            </button>
+            <button class="ratio-btn" data-ratio="16:9">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>16:9
+            </button>
+            <button class="ratio-btn" data-ratio="16:10">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>16:10
+            </button>
+            <button class="ratio-btn" data-ratio="65:24" style="grid-column: span 2;">
+              <span class="ratio-icon-wrap"><span class="ratio-icon" data-icon></span></span>65:24
+            </button>
+          </div>
+          <div class="orientation-toggle" id="orientationToggle">
+            <button data-orient="landscape" class="active">▭ 横屏</button>
+            <button data-orient="portrait">▯ 竖屏</button>
+          </div>
+        </div>
+
+        <div id="splitRatioSection" class="hidden">
+          <div class="section-label">单张比例</div>
+          <div class="split-ratio-grid" id="splitRatioGrid">
+            <button class="split-ratio-btn active" data-split-ratio="4:5">
+              <span class="split-ratio-icon" data-split-icon></span>4:5
+            </button>
+            <button class="split-ratio-btn" data-split-ratio="3:4">
+              <span class="split-ratio-icon" data-split-icon></span>3:4
+            </button>
+            <button class="split-ratio-btn" data-split-ratio="2:3">
+              <span class="split-ratio-icon" data-split-icon></span>2:3
+            </button>
+            <button class="split-ratio-btn" data-split-ratio="9:16">
+              <span class="split-ratio-icon" data-split-icon></span>9:16
+            </button>
+          </div>
+
+          <div class="section-label" style="margin-top: var(--s-4);">切分数量</div>
+          <div class="split-count-grid" id="splitCountGrid">
+            <button class="split-count-btn active" data-count="2">2 张</button>
+            <button class="split-count-btn" data-count="3">3 张</button>
+            <button class="split-count-btn" data-count="4">4 张</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="section-label">边框</div>
+        <div class="field">
+          <div class="field-header">
+            <span class="field-label">宽度</span>
+            <span class="field-value" id="borderWidthVal">4%</span>
+          </div>
+          <input type="range" id="borderWidth" min="0" max="10" value="4" step="0.1">
+        </div>
+        <div class="field">
+          <div class="field-header">
+            <span class="field-label">圆角</span>
+            <span class="field-value" id="radiusVal">0%</span>
+          </div>
+          <input type="range" id="radius" min="0" max="20" value="0" step="0.5">
+        </div>
+        <div class="color-row">
+          <span class="field-label">颜色</span>
+          <div class="color-chip" style="background:#222" id="borderColorChip">
+            <input type="color" id="borderColor" value="#222222">
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="section-label">
+          <span>照片位置</span>
+          <button class="btn btn-ghost btn-sm" id="centerBtn">居中</button>
+        </div>
+        <div class="field">
+          <div class="field-header">
+            <span class="field-label">水平</span>
+            <span class="field-value zero" id="offsetXVal">0%</span>
+          </div>
+          <div class="offset-slider-wrap">
+            <input type="range" id="offsetX" min="-100" max="100" value="0" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-header">
+            <span class="field-label">垂直</span>
+            <span class="field-value zero" id="offsetYVal">0%</span>
+          </div>
+          <div class="offset-slider-wrap">
+            <input type="range" id="offsetY" min="-100" max="100" value="0" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="section-label">背景</div>
+        <div class="segmented" id="bgModeSegment">
+          <button data-mode="solid" class="active">纯色</button>
+          <button data-mode="blur">照片模糊</button>
+        </div>
+
+        <div id="solidBgControls">
+          <div class="field">
+            <div class="field-header">
+              <span class="field-label">扩展</span>
+              <span class="field-value" id="paddingVal">8%</span>
+            </div>
+            <input type="range" id="padding" min="0" max="30" value="8" step="0.5">
+          </div>
+          <div class="field">
+            <div class="color-row">
+              <span class="field-label">颜色</span>
+              <div class="color-chip" style="background:#fff" id="bgColorChip">
+                <input type="color" id="bgColor" value="#ffffff">
+              </div>
+            </div>
+            <div class="preset-row" id="presetRow"></div>
+          </div>
+        </div>
+
+        <div id="blurBgControls" class="hidden">
+          <div class="field">
+            <div class="field-header">
+              <span class="field-label">扩展</span>
+              <span class="field-value" id="blurPaddingVal">8%</span>
+            </div>
+            <input type="range" id="blurPadding" min="0" max="30" value="8" step="0.5">
+          </div>
+          <div class="field">
+            <div class="field-header">
+              <span class="field-label">模糊强度</span>
+              <span class="field-value" id="blurAmountVal">60</span>
+            </div>
+            <input type="range" id="blurAmount" min="0" max="100" value="60" step="1">
+          </div>
+          <div class="field">
+            <div class="field-header">
+              <span class="field-label">白色遮罩</span>
+              <span class="field-value" id="blurOverlayVal">35%</span>
+            </div>
+            <input type="range" id="blurOverlay" min="0" max="100" value="35" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector-section">
+        <div class="section-label">输出</div>
+
+        <div id="singleOutputSection">
+          <div class="field">
+            <div class="field-header">
+              <span class="field-label">长边尺寸</span>
+              <span class="field-value" id="outputSizeVal">原图</span>
+            </div>
+            <select id="outputSize" class="input-inline">
+              <option value="original">原图尺寸</option>
+              <option value="1080">1080 px</option>
+              <option value="2048">2048 px</option>
+              <option value="3000">3000 px</option>
+              <option value="custom">自定义…</option>
+            </select>
+          </div>
+          <div class="field hidden" id="customSizeField">
+            <div class="field-header">
+              <span class="field-label">自定义长边</span>
+              <span class="field-value">px</span>
+            </div>
+            <input type="number" id="customSize" class="input-inline" min="64" max="8000" value="1500" step="1">
+          </div>
+          <div class="field">
+            <div class="field-header"><span class="field-label">格式</span></div>
+            <div class="segmented-sm" id="formatSegment">
+              <button data-format="png">PNG</button>
+              <button data-format="jpeg" class="active">JPEG</button>
+              <button data-format="webp">WebP</button>
+            </div>
+          </div>
+          <div class="field" id="qualityField">
+            <div class="field-header">
+              <span class="field-label">质量</span>
+              <span class="field-value" id="qualityVal">90</span>
+            </div>
+            <input type="range" id="quality" min="30" max="100" value="90" step="1">
+          </div>
+          <div class="field">
+            <div class="switch-row">
+              <span class="field-label">限制文件大小</span>
+              <button class="switch" id="limitSizeSwitch" role="switch" aria-checked="false"></button>
+            </div>
+          </div>
+          <div class="field hidden" id="targetSizeField">
+            <div class="field-header">
+              <span class="field-label">目标大小</span>
+              <span class="field-value">KB</span>
+            </div>
+            <input type="number" id="targetSize" class="input-inline" min="50" max="50000" value="500" step="50">
+          </div>
+        </div>
+
+        <div id="splitOutputSection" class="hidden">
+          <div class="field">
+            <div class="field-header"><span class="field-label">单张长边</span></div>
+            <select id="splitSizeSelect" class="input-inline">
+              <option value="1080">1080 px</option>
+              <option value="1440" selected>1440 px</option>
+              <option value="1920">1920 px</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-header"><span class="field-label">格式</span></div>
+            <div class="segmented-sm" id="splitFormatSegment">
+              <button data-format="jpeg" class="active">JPEG</button>
+              <button data-format="png">PNG</button>
+            </div>
+          </div>
+          <div class="split-tip">
+            先按边框设置渲染完整图，再平均切成 <b id="splitCountTip">2</b> 张。社交平台按顺序上传后，滑动时多张图拼成一张完整带边框的图。
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="exportBtn" style="width:100%; margin-top: var(--s-3);" disabled>导出</button>
+        <div class="export-progress" id="exportProgress">
+          <div class="export-bar"><div class="export-bar-fill" id="exportBarFill"></div></div>
+          <div class="export-text" id="exportText"></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="strip" id="strip">
+    <button class="strip-add" id="stripAddBtn" title="添加照片">+</button>
+  </footer>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" multiple>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+
+  const canvas = $('previewCanvas');
+  const ctx = canvas.getContext('2d');
+  const fileInput = $('fileInput');
+  const strip = $('strip');
+  const stripAddBtn = $('stripAddBtn');
+  const addBtn = $('addBtn');
+  const emptyState = $('emptyState');
+  const canvasStage = $('canvasStage');
+  const canvasInfo = $('canvasInfo');
+  const infoName = $('infoName');
+  const infoSize = $('infoSize');
+  const infoOutput = $('infoOutput');
+  const toolbarSubtitle = $('toolbarSubtitle');
+  const toastEl = $('toast');
+  const presetRow = $('presetRow');
+
+  const modeSwitch = $('modeSwitch');
+  const singleRatioSection = $('singleRatioSection');
+  const splitRatioSection = $('splitRatioSection');
+  const singleOutputSection = $('singleOutputSection');
+  const splitOutputSection = $('splitOutputSection');
+
+  const borderWidthSlider = $('borderWidth');
+  const borderWidthVal = $('borderWidthVal');
+  const borderColorInput = $('borderColor');
+  const borderColorChip = $('borderColorChip');
+  const radiusSlider = $('radius');
+  const radiusVal = $('radiusVal');
+
+  const offsetXSlider = $('offsetX');
+  const offsetXVal = $('offsetXVal');
+  const offsetYSlider = $('offsetY');
+  const offsetYVal = $('offsetYVal');
+  const centerBtn = $('centerBtn');
+
+  const solidBgControls = $('solidBgControls');
+  const paddingSlider = $('padding');
+  const paddingVal = $('paddingVal');
+  const bgColorInput = $('bgColor');
+  const bgColorChip = $('bgColorChip');
+
+  const blurBgControls = $('blurBgControls');
+  const blurPaddingSlider = $('blurPadding');
+  const blurPaddingVal = $('blurPaddingVal');
+  const blurAmountSlider = $('blurAmount');
+  const blurAmountVal = $('blurAmountVal');
+  const blurOverlaySlider = $('blurOverlay');
+  const blurOverlayVal = $('blurOverlayVal');
+
+  const bgModeSegment = $('bgModeSegment');
+  const ratioGrid = $('ratioGrid');
+  const orientationToggle = $('orientationToggle');
+  const landscapeBtn = orientationToggle.querySelector('button[data-orient="landscape"]');
+  const portraitBtn = orientationToggle.querySelector('button[data-orient="portrait"]');
+
+  const outputSizeSelect = $('outputSize');
+  const outputSizeVal = $('outputSizeVal');
+  const customSizeField = $('customSizeField');
+  const customSizeInput = $('customSize');
+  const formatSegment = $('formatSegment');
+  const qualityField = $('qualityField');
+  const qualitySlider = $('quality');
+  const qualityVal = $('qualityVal');
+  const limitSizeSwitch = $('limitSizeSwitch');
+  const targetSizeField = $('targetSizeField');
+  const targetSizeInput = $('targetSize');
+
+  const splitRatioGrid = $('splitRatioGrid');
+  const splitCountGrid = $('splitCountGrid');
+  const splitCountTip = $('splitCountTip');
+  const splitSizeSelect = $('splitSizeSelect');
+  const splitFormatSegment = $('splitFormatSegment');
+
+  const resetBtn = $('resetBtn');
+  const clearBtn = $('clearBtn');
+  const downloadAllBtn = $('downloadAllBtn');
+  const exportBtn = $('exportBtn');
+  const exportProgress = $('exportProgress');
+  const exportBarFill = $('exportBarFill');
+  const exportText = $('exportText');
+
+  let items = [];
+  let activeId = null;
+  let lastPaletteItemId = null;
+
+  let borderRatio = 0.04;
+  let radiusRatio = 0.00;
+  let borderColor = '#222222';
+  let offsetX = 0;
+  let offsetY = 0;
+
+  const RATIOS = {
+    '1:1':   { base: [1, 1],   noPortrait: false },
+    '3:2':   { base: [3, 2],   noPortrait: false },
+    '2:3':   { base: [2, 3],   noPortrait: false },
+    '4:3':   { base: [4, 3],   noPortrait: false },
+    '5:4':   { base: [5, 4],   noPortrait: false },
+    '16:9':  { base: [16, 9],  noPortrait: false },
+    '16:10': { base: [16, 10], noPortrait: true  },
+    '65:24': { base: [65, 24], noPortrait: true  }
+  };
+  let currentRatioKey = '1:1';
+  let currentOrientation = 'landscape';
+
+  let bgMode = 'solid';
+  let paddingRatio = 0.08;
+  let bgColor = '#ffffff';
+  let blurPaddingRatio = 0.08;
+  let blurAmount = 60;
+  let blurOverlay = 35;
+
+  let outputSizeMode = 'original';
+  let customSize = 1500;
+  let outputFormat = 'jpeg';
+  let quality = 90;
+  let limitSize = false;
+  let targetSizeKB = 500;
+
+  let outputMode = 'single';
+
+  const SPLIT_RATIOS = {
+    '4:5':  { w: 4, h: 5 },
+    '3:4':  { w: 3, h: 4 },
+    '2:3':  { w: 2, h: 3 },
+    '9:16': { w: 9, h: 16 }
+  };
+  let splitRatioKey = '4:5';
+  let splitCount = 2;
+  let splitExportLongSide = 1440;
+  let splitFormat = 'jpeg';
+
+  const ICON_MAX = 20;
+  const ICON_MIN = 5;
+
+  // ★ 关键修复：当前使用的 padding（根据背景模式动态选择）
+  function getCurrentPaddingRatio() {
+    return bgMode === 'blur' ? blurPaddingRatio : paddingRatio;
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  }
+
+  function computePalette(image) {
+    const N = 64;
+    const off = document.createElement('canvas');
+    off.width = N; off.height = N;
+    const c = off.getContext('2d');
+    c.drawImage(image, 0, 0, N, N);
+    let data;
+    try { data = c.getImageData(0, 0, N, N).data; }
+    catch (e) { console.warn('读取像素失败', e); return null; }
+    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+    const bucketSize = 16;
+    const buckets = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if (a < 128) continue;
+      rSum += r; gSum += g; bSum += b; count++;
+      const qr = Math.floor(r / bucketSize);
+      const qg = Math.floor(g / bucketSize);
+      const qb = Math.floor(b / bucketSize);
+      const key = (qr << 8) | (qg << 4) | qb;
+      let bucket = buckets.get(key);
+      if (!bucket) { bucket = { r: 0, g: 0, b: 0, n: 0 }; buckets.set(key, bucket); }
+      bucket.r += r; bucket.g += g; bucket.b += b; bucket.n++;
+    }
+    if (count === 0) return null;
+    const avg = { r: rSum / count, g: gSum / count, b: bSum / count };
+    const sorted = Array.from(buckets.values()).sort((a, b) => b.n - a.n);
+    const dominant = [];
+    const minDist = 50;
+    for (const bucket of sorted) {
+      const br = bucket.r / bucket.n;
+      const bg = bucket.g / bucket.n;
+      const bb = bucket.b / bucket.n;
+      let tooClose = false;
+      for (const d of dominant) {
+        const dist = Math.sqrt((d.r - br) ** 2 + (d.g - bg) ** 2 + (d.b - bb) ** 2);
+        if (dist < minDist) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      dominant.push({ r: br, g: bg, b: bb });
+      if (dominant.length === 4) break;
+    }
+    while (dominant.length < 4) dominant.push({ ...avg });
+    return {
+      avg: rgbToHex(avg.r, avg.g, avg.b),
+      dominant: dominant.map(d => rgbToHex(d.r, d.g, d.b))
+    };
+  }
+
+  const DEFAULT_PRESET_COLORS = ['#ffffff', '#f5f0e8', '#1a1a1a', '#0f172a'];
+  const DEFAULT_PRESET_TITLES = ['白', '米白', '黑', '深蓝'];
+
+  function renderPalette(item) {
+    presetRow.innerHTML = '';
+    let colors, titles;
+    if (item && item.palette) {
+      colors = [item.palette.avg, ...item.palette.dominant];
+      titles = ['照片平均色', '主体色 1', '主体色 2', '主体色 3', '主体色 4'];
+    } else {
+      colors = DEFAULT_PRESET_COLORS;
+      titles = DEFAULT_PRESET_TITLES;
+    }
+    colors.forEach((color, i) => {
+      const dot = document.createElement('div');
+      dot.className = 'preset-dot';
+      dot.style.background = color;
+      dot.title = `${titles[i]} ${color}`;
+      dot.addEventListener('click', () => {
+        bgColor = color;
+        bgColorInput.value = color;
+        bgColorChip.style.background = color;
+        drawPreview();
+      });
+      presetRow.appendChild(dot);
+    });
+  }
+
+  function updateRatioIcons() {
+    const landscape = currentOrientation === 'landscape';
+    ratioGrid.querySelectorAll('.ratio-btn').forEach((btn) => {
+      const key = btn.dataset.ratio;
+      const cfg = RATIOS[key];
+      if (!cfg) return;
+      let [w, h] = cfg.base;
+      if (!landscape) [w, h] = [h, w];
+      const ratio = w / h;
+      let iconW, iconH;
+      if (w >= h) {
+        iconW = ICON_MAX;
+        iconH = Math.max(ICON_MIN, Math.round(ICON_MAX / ratio));
+      } else {
+        iconH = ICON_MAX;
+        iconW = Math.max(ICON_MIN, Math.round(ICON_MAX * ratio));
+      }
+      const iconEl = btn.querySelector('[data-icon]');
+      if (iconEl) {
+        iconEl.style.width = iconW + 'px';
+        iconEl.style.height = iconH + 'px';
+      }
+    });
+  }
+
+  function updateSplitRatioIcons() {
+    splitRatioGrid.querySelectorAll('.split-ratio-btn').forEach((btn) => {
+      const key = btn.dataset.splitRatio;
+      const cfg = SPLIT_RATIOS[key];
+      if (!cfg) return;
+      const ratio = cfg.w / cfg.h;
+      let iconW, iconH;
+      if (cfg.w >= cfg.h) {
+        iconW = 32;
+        iconH = Math.max(8, Math.round(32 / ratio));
+      } else {
+        iconH = 32;
+        iconW = Math.max(8, Math.round(32 * ratio));
+      }
+      const iconEl = btn.querySelector('[data-split-icon]');
+      if (iconEl) {
+        iconEl.style.width = iconW + 'px';
+        iconEl.style.height = iconH + 'px';
+      }
+    });
+  }
+
+  function getSingleAspectRatio() {
+    const cfg = RATIOS[currentRatioKey];
+    const [w, h] = cfg.base;
+    if (currentOrientation === 'landscape') {
+      return { w, h, ratio: w / h };
+    }
+    return { w: h, h: w, ratio: h / w };
+  }
+
+  function getSplitAspectRatio() {
+    const cfg = SPLIT_RATIOS[splitRatioKey];
+    return {
+      w: cfg.w * splitCount,
+      h: cfg.h,
+      ratio: (cfg.w * splitCount) / cfg.h
+    };
+  }
+
+  function getActiveAspectRatio() {
+    return outputMode === 'split' ? getSplitAspectRatio() : getSingleAspectRatio();
+  }
+
+  function syncOrientationState() {
+    const cfg = RATIOS[currentRatioKey];
+    const portraitDisabled = cfg.noPortrait;
+    portraitBtn.disabled = portraitDisabled;
+    if (portraitDisabled && currentOrientation === 'portrait') {
+      currentOrientation = 'landscape';
+    }
+    landscapeBtn.classList.toggle('active', currentOrientation === 'landscape');
+    portraitBtn.classList.toggle('active', currentOrientation === 'portrait' && !portraitDisabled);
+    updateRatioIcons();
+  }
+
+  function computeLayout(imgW, imgH, baseSize, bRatio, pRatio, rRatio, aspectRatio, offX, offY) {
+    const longSide = Math.max(imgW, imgH);
+    const scale = baseSize / longSide;
+    const photoW = Math.max(1, Math.round(imgW * scale));
+    const photoH = Math.max(1, Math.round(imgH * scale));
+    const borderPx = Math.round(baseSize * bRatio);
+    const paddingPx = Math.round(baseSize * pRatio);
+    const radiusPx = Math.round(baseSize * rRatio);
+    const contentW = photoW + 2 * (borderPx + paddingPx);
+    const contentH = photoH + 2 * (borderPx + paddingPx);
+    let canvasH = Math.max(contentH, contentW / aspectRatio.ratio);
+    let canvasW = canvasH * aspectRatio.ratio;
+    if (canvasW < contentW) {
+      canvasW = contentW;
+      canvasH = canvasW / aspectRatio.ratio;
+    }
+    canvasW = Math.round(canvasW);
+    canvasH = Math.round(canvasH);
+    const centerX = (canvasW - photoW) / 2;
+    const centerY = (canvasH - photoH) / 2;
+    const maxOffsetX = (canvasW - photoW) / 2;
+    const maxOffsetY = (canvasH - photoH) / 2;
+    const photoX = centerX + offX * maxOffsetX;
+    const photoY = centerY + offY * maxOffsetY;
+    return {
+      canvasW, canvasH,
+      photoW, photoH, photoX, photoY,
+      borderPx, paddingPx, radiusPx,
+      contentW, contentH,
+      centerX, centerY, maxOffsetX, maxOffsetY
+    };
+  }
+
+  function roundedRectPath(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  function drawBlurBackground(targetCtx, image, canvasW, canvasH, amount, overlay) {
+    const imgW = image.width;
+    const imgH = image.height;
+    const targetRatio = canvasW / canvasH;
+    const imgRatio = imgW / imgH;
+    let sx, sy, sw, sh;
+    if (imgRatio > targetRatio) {
+      sh = imgH; sw = imgH * targetRatio;
+      sx = (imgW - sw) / 2; sy = 0;
+    } else {
+      sw = imgW; sh = imgW / targetRatio;
+      sx = 0; sy = (imgH - sh) / 2;
+    }
+    const maxSide = Math.max(canvasW, canvasH);
+    const blurPx = Math.max(0, (amount / 100) * (maxSide * 0.08));
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = canvasW; bgCanvas.height = canvasH;
+    const bgCtx = bgCanvas.getContext('2d');
+    if (blurPx > 0) {
+      bgCtx.filter = `blur(${blurPx}px)`;
+      const expand = blurPx * 2;
+      bgCtx.drawImage(image, sx, sy, sw, sh, -expand, -expand, canvasW + expand * 2, canvasH + expand * 2);
+      bgCtx.filter = 'none';
+    } else {
+      bgCtx.drawImage(image, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
+    }
+    targetCtx.drawImage(bgCanvas, 0, 0);
+    if (overlay > 0) {
+      targetCtx.fillStyle = `rgba(255, 255, 255, ${overlay / 100})`;
+      targetCtx.fillRect(0, 0, canvasW, canvasH);
+    }
+  }
+
+  function renderItem(targetCtx, image, baseSize, opts) {
+    const {
+      bRatio, pRatio, rRatio,
+      bColor, gColor,
+      mode, blurAmt, blurOver,
+      aspectRatio,
+      offX, offY
+    } = opts;
+    const layout = computeLayout(
+      image.width, image.height, baseSize,
+      bRatio, pRatio, rRatio, aspectRatio, offX, offY
+    );
+    const {
+      canvasW, canvasH,
+      photoW, photoH, photoX, photoY,
+      borderPx, radiusPx
+    } = layout;
+
+    targetCtx.clearRect(0, 0, canvasW, canvasH);
+
+    if (mode === 'blur') {
+      targetCtx.fillStyle = gColor;
+      targetCtx.fillRect(0, 0, canvasW, canvasH);
+      drawBlurBackground(targetCtx, image, canvasW, canvasH, blurAmt, blurOver);
+    } else {
+      targetCtx.fillStyle = gColor;
+      targetCtx.fillRect(0, 0, canvasW, canvasH);
+    }
+
+    if (borderPx > 0) {
+      const bX = photoX - borderPx;
+      const bY = photoY - borderPx;
+      const bW = photoW + borderPx * 2;
+      const bH = photoH + borderPx * 2;
+      const bR = radiusPx > 0 ? Math.min(radiusPx, Math.min(bW, bH) / 2) : 0;
+      targetCtx.fillStyle = bColor;
+      if (bR > 0) {
+        roundedRectPath(targetCtx, bX, bY, bW, bH, bR);
+        targetCtx.fill();
+      } else {
+        targetCtx.fillRect(bX, bY, bW, bH);
+      }
+    }
+
+    targetCtx.save();
+    if (radiusPx > 0) {
+      const r = Math.min(radiusPx, Math.min(photoW, photoH) / 2);
+      roundedRectPath(targetCtx, photoX, photoY, photoW, photoH, r);
+      targetCtx.clip();
+    }
+    targetCtx.imageSmoothingEnabled = true;
+    targetCtx.imageSmoothingQuality = 'high';
+    targetCtx.drawImage(image, photoX, photoY, photoW, photoH);
+    targetCtx.restore();
+
+    return layout;
+  }
+
+  function getCurrentOpts(aspectRatio) {
+    const pRatio = getCurrentPaddingRatio();
+    return {
+      bRatio: borderRatio,
+      pRatio: pRatio,
+      rRatio: radiusRatio,
+      bColor: borderColor,
+      gColor: bgColor,
+      mode: bgMode,
+      blurAmt: blurAmount,
+      blurOver: blurOverlay,
+      aspectRatio: aspectRatio,
+      offX: offsetX,
+      offY: offsetY
+    };
+  }
+
+  function getTargetLongSide() {
+    if (outputSizeMode === 'original') return null;
+    if (outputSizeMode === 'custom') {
+      return Math.max(64, Math.min(8000, Math.round(customSize)));
+    }
+    return Number(outputSizeMode);
+  }
+
+  function resizeCanvasToLongSide(srcCanvas, targetLong) {
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    const longSide = Math.max(w, h);
+    if (!targetLong || targetLong === longSide) return srcCanvas;
+    const scale = targetLong / longSide;
+    const newW = Math.max(1, Math.round(w * scale));
+    const newH = Math.max(1, Math.round(h * scale));
+    const out = document.createElement('canvas');
+    out.width = newW; out.height = newH;
+    const c = out.getContext('2d');
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(srcCanvas, 0, 0, w, h, 0, 0, newW, newH);
+    return out;
+  }
+
+  function canvasToBlob(canvasEl, mime, quality) {
+    return new Promise((resolve, reject) => {
+      canvasEl.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('toBlob 失败'));
+      }, mime, quality);
+    });
+  }
+
+  async function encodeWithTargetSize(canvasEl, mime, maxQuality, targetBytes) {
+    let lo = 10, hi = maxQuality, best = null, bestDiff = Infinity;
+    for (let i = 0; i < 8; i++) {
+      const q = (lo + hi) / 2;
+      const blob = await canvasToBlob(canvasEl, mime, q / 100);
+      const diff = Math.abs(blob.size - targetBytes);
+      if (diff < bestDiff) { bestDiff = diff; best = blob; }
+      if (diff / targetBytes < 0.05) break;
+      if (blob.size > targetBytes) hi = q;
+      else lo = q;
+      if (lo >= hi - 1) break;
+    }
+    if (!best) best = await canvasToBlob(canvasEl, mime, maxQuality / 100);
+    return best;
+  }
+
+  async function exportSingleItem(item) {
+    const opts = getCurrentOpts(getSingleAspectRatio());
+    const baseSize = Math.max(item.width, item.height);
+    const layout = computeLayout(
+      item.width, item.height, baseSize,
+      opts.bRatio, opts.pRatio, opts.rRatio, opts.aspectRatio,
+      opts.offX, opts.offY
+    );
+    const off = document.createElement('canvas');
+    off.width = layout.canvasW;
+    off.height = layout.canvasH;
+    const c = off.getContext('2d');
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    renderItem(c, item.image, baseSize, opts);
+    const targetLong = getTargetLongSide();
+    const finalCanvas = resizeCanvasToLongSide(off, targetLong);
+    const mime = outputFormat === 'png' ? 'image/png'
+      : outputFormat === 'jpeg' ? 'image/jpeg' : 'image/webp';
+    let blob;
+    if (limitSize && outputFormat !== 'png') {
+      blob = await encodeWithTargetSize(finalCanvas, mime, quality, targetSizeKB * 1024);
+    } else {
+      blob = await canvasToBlob(finalCanvas, mime, quality / 100);
+    }
+    return [blob];
+  }
+
+  async function exportSplitItem(item) {
+    const { w: rw, h: rh } = SPLIT_RATIOS[splitRatioKey];
+    const longSide = Math.max(rw, rh);
+    const unit = splitExportLongSide / longSide;
+    const singleW = Math.round(rw * unit);
+    const singleH = Math.round(rh * unit);
+    const fullW = singleW * splitCount;
+    const fullH = singleH;
+    const targetLong = Math.max(fullW, fullH);
+
+    const fullAspect = { w: fullW, h: fullH, ratio: fullW / fullH };
+
+    // ★ 修复：用当前 padding（根据 bgMode 动态选择）
+    const currentPRatio = getCurrentPaddingRatio();
+
+    const BASE = 1000;
+    const probe = computeLayout(
+      item.width, item.height, BASE,
+      borderRatio, currentPRatio, radiusRatio, fullAspect,
+      offsetX, offsetY
+    );
+    const scale = targetLong / Math.max(probe.canvasW, probe.canvasH);
+    const baseSize = BASE * scale;
+    const layout = computeLayout(
+      item.width, item.height, baseSize,
+      borderRatio, currentPRatio, radiusRatio, fullAspect,
+      offsetX, offsetY
+    );
+
+    const opts = getCurrentOpts(fullAspect);
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = layout.canvasW;
+    fullCanvas.height = layout.canvasH;
+    const fctx = fullCanvas.getContext('2d');
+    fctx.imageSmoothingEnabled = true;
+    fctx.imageSmoothingQuality = 'high';
+    renderItem(fctx, item.image, baseSize, opts);
+
+    const finalFull = resizeCanvasToLongSide(fullCanvas, targetLong);
+    const sliceW = Math.floor(finalFull.width / splitCount);
+    const sliceH = finalFull.height;
+
+    const mime = splitFormat === 'png' ? 'image/png' : 'image/jpeg';
+    const q = quality / 100;
+
+    const blobs = [];
+    for (let i = 0; i < splitCount; i++) {
+      const cv = document.createElement('canvas');
+      cv.width = sliceW;
+      cv.height = sliceH;
+      const c = cv.getContext('2d');
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(finalFull, i * sliceW, 0, sliceW, sliceH, 0, 0, sliceW, sliceH);
+      blobs.push(await canvasToBlob(cv, mime, q));
+    }
+    return blobs;
+  }
+
+  function drawPreview() {
+    if (outputMode === 'split') drawSplitPreview();
+    else drawSinglePreview();
+  }
+
+  function drawSinglePreview() {
+    const active = items.find((it) => it.id === activeId);
+    if (!active) {
+      canvasStage.style.display = 'none';
+      emptyState.style.display = 'block';
+      canvasInfo.style.display = 'none';
+      toolbarSubtitle.textContent = '未命名';
+      downloadAllBtn.disabled = true;
+      exportBtn.disabled = true;
+      if (lastPaletteItemId !== null) {
+        renderPalette(null);
+        lastPaletteItemId = null;
+      }
+      return;
+    }
+    canvasStage.style.display = 'flex';
+    emptyState.style.display = 'none';
+    canvasInfo.style.display = 'flex';
+    downloadAllBtn.disabled = false;
+    exportBtn.disabled = false;
+    if (lastPaletteItemId !== active.id) {
+      renderPalette(active);
+      lastPaletteItemId = active.id;
+    }
+    const BASE = 720;
+    const opts = getCurrentOpts(getSingleAspectRatio());
+    const layout = computeLayout(
+      active.width, active.height, BASE,
+      opts.bRatio, opts.pRatio, opts.rRatio, opts.aspectRatio,
+      opts.offX, opts.offY
+    );
+    canvas.width = layout.canvasW;
+    canvas.height = layout.canvasH;
+    const maxW = window.innerWidth - 340 - 64;
+    const maxH = window.innerHeight - 52 - 96 - 96;
+    const scale = Math.min(maxW / layout.canvasW, maxH / layout.canvasH, 1);
+    canvas.style.width = Math.round(layout.canvasW * scale) + 'px';
+    canvas.style.height = Math.round(layout.canvasH * scale) + 'px';
+    renderItem(ctx, active.image, BASE, opts);
+    toolbarSubtitle.textContent = active.name;
+    infoName.textContent = active.name.length > 20
+      ? active.name.slice(0, 18) + '…' : active.name;
+    infoSize.textContent = `${active.width} × ${active.height}`;
+    const outBase = Math.max(active.width, active.height);
+    const outLayout = computeLayout(
+      active.width, active.height, outBase,
+      opts.bRatio, opts.pRatio, opts.rRatio, opts.aspectRatio,
+      opts.offX, opts.offY
+    );
+    const targetLong = getTargetLongSide();
+    let finalW = outLayout.canvasW;
+    let finalH = outLayout.canvasH;
+    if (targetLong) {
+      const longSide = Math.max(finalW, finalH);
+      if (longSide !== targetLong) {
+        const s = targetLong / longSide;
+        finalW = Math.round(finalW * s);
+        finalH = Math.round(finalH * s);
+      }
+    }
+    infoOutput.textContent = `输出 ${finalW} × ${finalH}`;
+  }
+
+  function drawSplitPreview() {
+    const active = items.find((it) => it.id === activeId);
+    if (!active) {
+      canvasStage.style.display = 'none';
+      emptyState.style.display = 'block';
+      canvasInfo.style.display = 'none';
+      toolbarSubtitle.textContent = '未命名';
+      downloadAllBtn.disabled = true;
+      exportBtn.disabled = true;
+      if (lastPaletteItemId !== null) {
+        renderPalette(null);
+        lastPaletteItemId = null;
+      }
+      return;
+    }
+    canvasStage.style.display = 'flex';
+    emptyState.style.display = 'none';
+    canvasInfo.style.display = 'flex';
+    downloadAllBtn.disabled = false;
+    exportBtn.disabled = false;
+    if (lastPaletteItemId !== active.id) {
+      renderPalette(active);
+      lastPaletteItemId = active.id;
+    }
+
+    const fullAspect = getSplitAspectRatio();
+    const BASE = 1000;
+    // ★ 修复：用当前 padding（根据 bgMode 动态选择）
+    const currentPRatio = getCurrentPaddingRatio();
+    const probe = computeLayout(
+      active.width, active.height, BASE,
+      borderRatio, currentPRatio, radiusRatio, fullAspect,
+      offsetX, offsetY
+    );
+
+    const maxW = window.innerWidth - 340 - 64;
+    const maxH = window.innerHeight - 52 - 96 - 96;
+    const gap = 6;
+    const n = splitCount;
+
+    const scale = Math.min((maxW - gap * (n - 1)) / probe.canvasW, maxH / probe.canvasH, 1);
+    const pw = Math.max(20, Math.round(probe.canvasW * scale / n));
+    const ph = Math.max(30, Math.round(probe.canvasH * scale));
+
+    const totalW = pw * n + gap * (n - 1);
+    const totalH = ph;
+
+    canvas.width = totalW;
+    canvas.height = totalH;
+    canvas.style.width = totalW + 'px';
+    canvas.style.height = totalH + 'px';
+
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, totalW, totalH);
+
+    const tmp = document.createElement('canvas');
+    tmp.width = probe.canvasW;
+    tmp.height = probe.canvasH;
+    const tctx = tmp.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    renderItem(tctx, active.image, BASE, getCurrentOpts(fullAspect));
+
+    const sliceW = probe.canvasW / n;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    for (let i = 0; i < n; i++) {
+      const sx = i * sliceW;
+      const dx = i * (pw + gap);
+      ctx.drawImage(tmp, sx, 0, sliceW, probe.canvasH, dx, 0, pw, ph);
+    }
+
+    toolbarSubtitle.textContent = active.name;
+    infoName.textContent = active.name.length > 20
+      ? active.name.slice(0, 18) + '…' : active.name;
+    infoSize.textContent = `${active.width} × ${active.height}`;
+
+    const { w: rw, h: rh } = SPLIT_RATIOS[splitRatioKey];
+    const longSide = Math.max(rw, rh);
+    const unit = splitExportLongSide / longSide;
+    const outW = Math.round(rw * unit);
+    const outH = Math.round(rh * unit);
+    infoOutput.textContent = `输出 ${outW} × ${outH} × ${n} 张`;
+  }
+
+  function getBaseName(name) {
+    const i = name.lastIndexOf('.');
+    return i === -1 ? name : name.slice(0, i);
+  }
+  function extForFormat() {
+    if (outputFormat === 'png') return 'png';
+    if (outputFormat === 'jpeg') return 'jpg';
+    return 'webp';
+  }
+  function extForSplitFormat() {
+    return splitFormat === 'png' ? 'png' : 'jpg';
+  }
+
+  function triggerDownload(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  async function exportOne() {
+    const active = items.find((it) => it.id === activeId);
+    if (!active) return;
+    exportBtn.disabled = true;
+    exportBtn.textContent = '导出中…';
+    try {
+      if (outputMode === 'split') {
+        const blobs = await exportSplitItem(active);
+        const baseName = getBaseName(active.name);
+        const ext = extForSplitFormat();
+        for (let i = 0; i < blobs.length; i++) {
+          triggerDownload(blobs[i], baseName + '_' + (i + 1) + '.' + ext);
+          if (i < blobs.length - 1) await new Promise((r) => setTimeout(r, 300));
+        }
+        showToast(`已导出 ${blobs.length} 张`);
+      } else {
+        const blobs = await exportSingleItem(active);
+        triggerDownload(blobs[0], getBaseName(active.name) + '_framed.' + extForFormat());
+        showToast('已导出 1 张');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('导出失败');
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = '导出';
+    }
+  }
+
+  async function exportAll() {
+    if (items.length === 0) return;
+    downloadAllBtn.disabled = true;
+    exportProgress.classList.add('show');
+    exportBarFill.style.width = '0%';
+    exportText.textContent = '准备中…';
+
+    if (outputMode === 'split') {
+      const total = items.length * splitCount;
+      let done = 0;
+      const ext = extForSplitFormat();
+      for (const item of items) {
+        exportText.textContent = `${done + 1}-${done + splitCount} / ${total} · ${item.name}`;
+        const baseName = getBaseName(item.name);
+        try {
+          const blobs = await exportSplitItem(item);
+          for (let i = 0; i < blobs.length; i++) {
+            triggerDownload(blobs[i], baseName + '_' + (i + 1) + '.' + ext);
+            if (i < blobs.length - 1) await new Promise((r) => setTimeout(r, 300));
+          }
+        } catch (err) {
+          console.error('导出失败:', item.name, err);
+        }
+        done += splitCount;
+        exportBarFill.style.width = (done / total * 100) + '%';
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      exportText.textContent = `完成 · 共 ${total} 张`;
+      showToast(`已导出 ${total} 张`);
+    } else {
+      const total = items.length;
+      let done = 0;
+      for (const item of items) {
+        exportText.textContent = `${done + 1} / ${total} · ${item.name}`;
+        try {
+          const blobs = await exportSingleItem(item);
+          triggerDownload(blobs[0], getBaseName(item.name) + '_framed.' + extForFormat());
+        } catch (err) {
+          console.error('导出失败:', item.name, err);
+        }
+        done++;
+        exportBarFill.style.width = (done / total * 100) + '%';
+        await new Promise((r) => setTimeout(r, 240));
+      }
+      exportText.textContent = `完成 · 共 ${total} 张`;
+      showToast(`已导出 ${total} 张`);
+    }
+
+    downloadAllBtn.disabled = false;
+    setTimeout(() => {
+      exportProgress.classList.remove('show');
+      exportBarFill.style.width = '0%';
+      exportText.textContent = '';
+    }, 2600);
+  }
+
+  function renderStrip() {
+    Array.from(strip.querySelectorAll('.thumb-item')).forEach((el) => el.remove());
+    items.forEach((item) => {
+      const el = document.createElement('div');
+      el.className = 'thumb-item' + (item.id === activeId ? ' active' : '');
+      el.dataset.id = item.id;
+      el.title = item.name;
+      const img = document.createElement('img');
+      img.src = item.thumbUrl;
+      img.alt = item.name;
+      const rm = document.createElement('button');
+      rm.className = 'thumb-remove';
+      rm.textContent = '×';
+      rm.title = '移除';
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeItem(item.id);
+      });
+      el.appendChild(img);
+      el.appendChild(rm);
+      el.addEventListener('click', () => {
+        if (activeId === item.id) return;
+        switchTo(item.id);
+      });
+      strip.insertBefore(el, stripAddBtn);
+    });
+  }
+
+  function switchTo(id) {
+    activeId = id;
+    canvasStage.classList.add('switching');
+    renderStrip();
+    setTimeout(() => {
+      drawPreview();
+      requestAnimationFrame(() => {
+        canvasStage.classList.remove('switching');
+      });
+    }, 60);
+  }
+
+  function removeItem(id) {
+    const idx = items.findIndex((it) => it.id === id);
+    if (idx === -1) return;
+    const removed = items.splice(idx, 1)[0];
+    if (removed.thumbUrl) URL.revokeObjectURL(removed.thumbUrl);
+    if (activeId === id) activeId = items.length ? items[0].id : null;
+    renderStrip();
+    drawPreview();
+  }
+
+  function clearAll() {
+    if (items.length === 0) return;
+    items.forEach((it) => {
+      if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl);
+    });
+    items = [];
+    activeId = null;
+    lastPaletteItemId = null;
+    renderStrip();
+    drawPreview();
+    showToast('已清空');
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('解析失败'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('读取失败'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    fileInput.value = '';
+    if (files.length === 0) return;
+    let added = 0;
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const image = await loadImage(file);
+        const palette = computePalette(image);
+        const id = Math.random().toString(36).slice(2, 9);
+        items.push({
+          id, image,
+          width: image.width, height: image.height,
+          name: file.name || 'photo',
+          thumbUrl: URL.createObjectURL(file),
+          palette
+        });
+        if (!activeId) activeId = id;
+        added++;
+      } catch (err) {
+        console.error('加载失败:', file.name, err);
+      }
+    }
+    if (added > 0) {
+      renderStrip();
+      drawPreview();
+      showToast(`已添加 ${added} 张`);
+    } else {
+      showToast('没有可用的图片');
+    }
+  });
+
+  function formatPct(v) {
+    const n = v * 100;
+    return (Number.isInteger(n) ? n.toString() : n.toFixed(1)) + '%';
+  }
+  function formatBorderPercent(v) {
+    return Number(v.toFixed(1)) + '%';
+  }
+  function formatOffset(v) {
+    if (Math.abs(v) < 0.005) return '0%';
+    const n = Math.round(v * 100);
+    return (n > 0 ? '+' : '') + n + '%';
+  }
+  function updateOffsetUI() {
+    offsetXVal.textContent = formatOffset(offsetX);
+    offsetYVal.textContent = formatOffset(offsetY);
+    offsetXVal.classList.toggle('zero', Math.abs(offsetX) < 0.005);
+    offsetYVal.classList.toggle('zero', Math.abs(offsetY) < 0.005);
+  }
+
+  modeSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    if (mode === outputMode) return;
+    outputMode = mode;
+    modeSwitch.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    if (mode === 'single') {
+      singleRatioSection.classList.remove('hidden');
+      splitRatioSection.classList.add('hidden');
+      singleOutputSection.classList.remove('hidden');
+      splitOutputSection.classList.add('hidden');
+    } else {
+      singleRatioSection.classList.add('hidden');
+      splitRatioSection.classList.remove('hidden');
+      singleOutputSection.classList.add('hidden');
+      splitOutputSection.classList.remove('hidden');
+    }
+    drawPreview();
+  });
+
+  ratioGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-ratio]');
+    if (!btn) return;
+    const ratio = btn.dataset.ratio;
+    if (ratio === currentRatioKey) return;
+    currentRatioKey = ratio;
+    ratioGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.ratio === ratio);
+    });
+    syncOrientationState();
+    drawPreview();
+  });
+
+  orientationToggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-orient]');
+    if (!btn || btn.disabled) return;
+    const orient = btn.dataset.orient;
+    if (orient === currentOrientation) return;
+    currentOrientation = orient;
+    landscapeBtn.classList.toggle('active', orient === 'landscape');
+    portraitBtn.classList.toggle('active', orient === 'portrait');
+    updateRatioIcons();
+    drawPreview();
+  });
+
+  splitRatioGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-split-ratio]');
+    if (!btn) return;
+    const key = btn.dataset.splitRatio;
+    if (key === splitRatioKey) return;
+    splitRatioKey = key;
+    splitRatioGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.splitRatio === key);
+    });
+    drawPreview();
+  });
+
+  splitCountGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-count]');
+    if (!btn) return;
+    const count = Number(btn.dataset.count);
+    if (count === splitCount) return;
+    splitCount = count;
+    splitCountGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.count) === count);
+    });
+    splitCountTip.textContent = count;
+    drawPreview();
+  });
+
+  splitSizeSelect.addEventListener('change', (e) => {
+    splitExportLongSide = Number(e.target.value) || 1440;
+    drawPreview();
+  });
+
+  splitFormatSegment.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-format]');
+    if (!btn) return;
+    const f = btn.dataset.format;
+    if (f === splitFormat) return;
+    splitFormat = f;
+    splitFormatSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.format === f);
+    });
+  });
+
+  borderWidthSlider.addEventListener('input', (e) => {
+    let raw = Number(e.target.value);
+    let rounded;
+    if (raw <= 1) rounded = Math.round(raw * 10) / 10;
+    else rounded = Math.round(raw * 2) / 2;
+    rounded = Math.min(10, Math.max(0, rounded));
+    borderWidthSlider.value = rounded;
+    borderRatio = rounded / 100;
+    borderWidthVal.textContent = formatBorderPercent(rounded);
+    drawPreview();
+  });
+
+  radiusSlider.addEventListener('input', (e) => {
+    radiusRatio = Number(e.target.value) / 100;
+    radiusVal.textContent = formatPct(radiusRatio);
+    drawPreview();
+  });
+
+  borderColorInput.addEventListener('input', (e) => {
+    borderColor = e.target.value;
+    borderColorChip.style.background = borderColor;
+    drawPreview();
+  });
+
+  offsetXSlider.addEventListener('input', (e) => {
+    offsetX = Number(e.target.value) / 100;
+    updateOffsetUI();
+    drawPreview();
+  });
+
+  offsetYSlider.addEventListener('input', (e) => {
+    offsetY = Number(e.target.value) / 100;
+    updateOffsetUI();
+    drawPreview();
+  });
+
+  centerBtn.addEventListener('click', () => {
+    offsetX = 0; offsetY = 0;
+    offsetXSlider.value = '0';
+    offsetYSlider.value = '0';
+    updateOffsetUI();
+    drawPreview();
+  });
+
+  paddingSlider.addEventListener('input', (e) => {
+    paddingRatio = Number(e.target.value) / 100;
+    paddingVal.textContent = formatPct(paddingRatio);
+    drawPreview();
+  });
+
+  bgColorInput.addEventListener('input', (e) => {
+    bgColor = e.target.value;
+    bgColorChip.style.background = bgColor;
+    drawPreview();
+  });
+
+  blurPaddingSlider.addEventListener('input', (e) => {
+    blurPaddingRatio = Number(e.target.value) / 100;
+    blurPaddingVal.textContent = formatPct(blurPaddingRatio);
+    drawPreview();
+  });
+
+  blurAmountSlider.addEventListener('input', (e) => {
+    blurAmount = Number(e.target.value);
+    blurAmountVal.textContent = blurAmount;
+    drawPreview();
+  });
+
+  blurOverlaySlider.addEventListener('input', (e) => {
+    blurOverlay = Number(e.target.value);
+    blurOverlayVal.textContent = blurOverlay + '%';
+    drawPreview();
+  });
+
+  bgModeSegment.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    if (mode === bgMode) return;
+    bgMode = mode;
+    bgModeSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    if (mode === 'solid') {
+      solidBgControls.classList.remove('hidden');
+      blurBgControls.classList.add('hidden');
+    } else {
+      solidBgControls.classList.add('hidden');
+      blurBgControls.classList.remove('hidden');
+    }
+    drawPreview();
+  });
+
+  function updateOutputUI() {
+    const v = outputSizeSelect.value;
+    outputSizeMode = v;
+    if (v === 'custom') {
+      customSizeField.classList.remove('hidden');
+      outputSizeVal.textContent = customSize + 'px';
+    } else if (v === 'original') {
+      customSizeField.classList.add('hidden');
+      outputSizeVal.textContent = '原图';
+    } else {
+      customSizeField.classList.add('hidden');
+      outputSizeVal.textContent = v + 'px';
+    }
+    if (outputFormat === 'png') {
+      qualityField.classList.add('hidden');
+    } else {
+      qualityField.classList.remove('hidden');
+    }
+    if (limitSize && outputFormat !== 'png') {
+      targetSizeField.classList.remove('hidden');
+    } else {
+      targetSizeField.classList.add('hidden');
+    }
+    if (outputFormat === 'png' && limitSize) {
+      limitSize = false;
+      limitSizeSwitch.classList.remove('on');
+      limitSizeSwitch.setAttribute('aria-checked', 'false');
+      targetSizeField.classList.add('hidden');
+    }
+    drawPreview();
+  }
+
+  outputSizeSelect.addEventListener('change', updateOutputUI);
+
+  customSizeInput.addEventListener('input', (e) => {
+    customSize = Math.max(64, Math.min(8000, Number(e.target.value) || 1500));
+    if (outputSizeMode === 'custom') {
+      outputSizeVal.textContent = customSize + 'px';
+      drawPreview();
+    }
+  });
+
+  formatSegment.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-format]');
+    if (!btn) return;
+    const f = btn.dataset.format;
+    if (f === outputFormat) return;
+    outputFormat = f;
+    formatSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.format === f);
+    });
+    updateOutputUI();
+  });
+
+  qualitySlider.addEventListener('input', (e) => {
+    quality = Number(e.target.value);
+    qualityVal.textContent = quality;
+  });
+
+  limitSizeSwitch.addEventListener('click', () => {
+    if (outputFormat === 'png') {
+      showToast('PNG 为无损格式，无法控制文件大小');
+      return;
+    }
+    limitSize = !limitSize;
+    limitSizeSwitch.classList.toggle('on', limitSize);
+    limitSizeSwitch.setAttribute('aria-checked', String(limitSize));
+    targetSizeField.classList.toggle('hidden', !limitSize);
+  });
+
+  targetSizeInput.addEventListener('input', (e) => {
+    targetSizeKB = Math.max(50, Math.min(50000, Number(e.target.value) || 500));
+  });
+
+  addBtn.addEventListener('click', () => fileInput.click());
+  stripAddBtn.addEventListener('click', () => fileInput.click());
+  downloadAllBtn.addEventListener('click', exportAll);
+  exportBtn.addEventListener('click', exportOne);
+  clearBtn.addEventListener('click', clearAll);
+
+  resetBtn.addEventListener('click', () => {
+    borderRatio = 0.04;
+    radiusRatio = 0.00;
+    borderColor = '#222222';
+    paddingRatio = 0.08;
+    bgColor = '#ffffff';
+    blurPaddingRatio = 0.08;
+    blurAmount = 60;
+    blurOverlay = 35;
+    bgMode = 'solid';
+    currentRatioKey = '1:1';
+    currentOrientation = 'landscape';
+    offsetX = 0;
+    offsetY = 0;
+    outputSizeMode = 'original';
+    customSize = 1500;
+    outputFormat = 'jpeg';
+    quality = 90;
+    limitSize = false;
+    targetSizeKB = 500;
+    splitRatioKey = '4:5';
+    splitCount = 2;
+    splitExportLongSide = 1440;
+    splitFormat = 'jpeg';
+
+    borderWidthSlider.value = '4';
+    radiusSlider.value = '0';
+    borderColorInput.value = '#222222';
+    paddingSlider.value = '8';
+    bgColorInput.value = '#ffffff';
+    blurPaddingSlider.value = '8';
+    blurAmountSlider.value = '60';
+    blurOverlaySlider.value = '35';
+    offsetXSlider.value = '0';
+    offsetYSlider.value = '0';
+    outputSizeSelect.value = 'original';
+    customSizeInput.value = '1500';
+    qualitySlider.value = '90';
+    splitSizeSelect.value = '1440';
+
+    borderWidthVal.textContent = '4%';
+    radiusVal.textContent = '0%';
+    paddingVal.textContent = '8%';
+    blurPaddingVal.textContent = '8%';
+    blurAmountVal.textContent = '60';
+    blurOverlayVal.textContent = '35%';
+    qualityVal.textContent = '90';
+    updateOffsetUI();
+
+    borderColorChip.style.background = '#222222';
+    bgColorChip.style.background = '#ffffff';
+
+    bgModeSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === 'solid');
+    });
+    solidBgControls.classList.remove('hidden');
+    blurBgControls.classList.add('hidden');
+
+    ratioGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.ratio === '1:1');
+    });
+    syncOrientationState();
+
+    splitRatioGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.splitRatio === '4:5');
+    });
+    splitCountGrid.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.count) === 2);
+    });
+    splitCountTip.textContent = '2';
+    splitFormatSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.format === 'jpeg');
+    });
+
+    formatSegment.querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('active', b.dataset.format === 'jpeg');
+    });
+    limitSizeSwitch.classList.remove('on');
+    limitSizeSwitch.setAttribute('aria-checked', 'false');
+
+    updateOutputUI();
+    showToast('已重置');
+  });
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toastEl.classList.remove('show'), 1800);
+  }
+
+  borderWidthVal.textContent = formatBorderPercent(borderRatio * 100);
+  radiusVal.textContent = formatPct(radiusRatio);
+  paddingVal.textContent = formatPct(paddingRatio);
+  blurPaddingVal.textContent = formatPct(blurPaddingRatio);
+  blurAmountVal.textContent = blurAmount;
+  blurOverlayVal.textContent = blurOverlay + '%';
+  qualityVal.textContent = quality;
+
+  borderColorChip.style.background = borderColor;
+  bgColorChip.style.background = bgColor;
+
+  updateOffsetUI();
+  updateRatioIcons();
+  updateSplitRatioIcons();
+  syncOrientationState();
+  updateOutputUI();
+  renderStrip();
+  renderPalette(null);
+  drawPreview();
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(drawPreview, 120);
+  });
+})();
+</script>
+</body>
+</html>
