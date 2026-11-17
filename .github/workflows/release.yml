@@ -37,11 +37,11 @@ jobs:
 
       - name: Build for macOS
         if: matrix.platform == 'mac'
-        run: pake ./src/framed.html --name "Framed" --json
+        run: pake ./src/framed.html --name "Framed" --icon ./icon.png --json
 
       - name: Build for Windows
         if: matrix.platform == 'win'
-        run: pake ./src/framed.html --name "Framed" --keep-binary --json
+        run: pake ./src/framed.html --name "Framed" --icon ./icon.png --keep-binary --json
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
